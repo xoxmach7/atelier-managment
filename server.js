@@ -29,7 +29,8 @@ import paymentRoutes from './routes/paymentRoutes.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+// Railway предоставляет PORT, для локальной разработки используем 5001
+const PORT = process.env.PORT || 5001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // ============================================
@@ -110,8 +111,17 @@ app.get('/', (req, res) => {
     });
 });
 
-// Health check (для мониторинга)
-app.get('/health', async (req, res) => {
+// Health check (для мониторинга Railway)
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        success: true,
+        status: 'ok',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Detailed health check (с проверкой БД)
+app.get('/health/detailed', async (req, res) => {
     const dbStatus = await testConnection();
     res.json({
         success: true,
