@@ -1,0 +1,166 @@
+// ============================================
+// ГЛАВНЫЙ ФАЙЛ СЕРВЕРА АТЕЛЬЕ "БРИГАДА"
+// ============================================
+import express from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import morgan from 'morgan';
+
+// Конфигурация
+import { testConnection } from './config/db.js';
+
+// Middleware
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { authRateLimiter, apiRateLimiter } from './middleware/rateLimiter.js';
+
+// Роуты
+import authRoutes from './routes/authRoutes.js';
+import customerRoutes from './routes/customerRoutes.js';
+import fabricRoutes from './routes/fabricRoutes.js';
+import corniceRoutes from './routes/corniceRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+import taskRoutes from './routes/taskRoutes.js';
+import reservationRoutes from './routes/reservationRoutes.js';
+import quoteRoutes from './routes/quoteRoutes.js';
+import productionRoutes from './routes/productionRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+
+// Загружаем переменные окружения
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// ============================================
+// MIDDLEWARE
+// ============================================
+// CORS - разрешаем запросы с фронтенда
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    process.env.CLIENT_URL
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Разрешаем запросы без origin (например, curl, Postman)
+        if (!origin) return callback(null, true);
+        
+        // В development разрешаем localhost
+        if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+            return callback(null, true);
+        }
+        
+        // Проверяем whitelist
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        
+        callback(new Error(`CORS запрещён для origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
+// Парсинг JSON
+app.use(express.json());
+
+// Логирование запросов
+app.use(morgan(NODE_ENV === 'development' ? 'dev' : 'combined'));
+
+// ============================================
+// API РОУТЫ
+// ============================================
+// Строгий лимит для авторизации (защита от брутфорса)
+app.use('/api/auth', authRateLimiter, authRoutes);
+
+// Лимит для остальных API
+app.use(apiRateLimiter);
+app.use('/api/customers', customerRoutes);      // Клиенты
+app.use('/api/fabrics', fabricRoutes);          // Склад: ткани
+app.use('/api/cornices', corniceRoutes);        // Склад: карнизы
+app.use('/api/orders', orderRoutes);            // Заказы
+app.use('/api/tasks', taskRoutes);              // Лиды и задачи
+app.use('/api/reservations', reservationRoutes); // Бронирование ткани
+app.use('/api/quotes', quoteRoutes);            // Сметы и КП
+app.use('/api/production', productionRoutes);   // Производство
+app.use('/api/payments', paymentRoutes);        // Предоплаты и выплаты
+
+// ============================================
+// БАЗОВЫЕ ЭНДПОИНТЫ
+// ============================================
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: '🚀 API Ателье "Бригада" активно!',
+        version: '2.1.0',
+        workflow: 'Лид → Замер → Смета → Оплата → Производство → Монтаж',
+        endpoints: {
+            auth: '/api/auth',
+            customers: '/api/customers',
+            fabrics: '/api/fabrics',
+            cornices: '/api/cornices',
+            orders: '/api/orders',
+            tasks: '/api/tasks (лиды и задачи)',
+            reservations: '/api/reservations (бронирование ткани)',
+            quotes: '/api/quotes (сметы и калькулятор)'
+        }
+    });
+});
+
+// Health check (для мониторинга)
+app.get('/health', async (req, res) => {
+    const dbStatus = await testConnection();
+    res.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        database: dbStatus.connected ? 'connected' : 'error',
+        ...(dbStatus.error && { db_error: dbStatus.error })
+    });
+});
+
+// ============================================
+// ОБРАБОТКА ОШИБОК
+// ============================================
+// 404 - не найдено
+app.use(notFoundHandler);
+
+// Глобальный обработчик ошибок
+app.use(errorHandler);
+
+// ============================================
+// ЗАПУСК СЕРВЕРА
+// ============================================
+const startServer = async () => {
+    try {
+        // Проверяем подключение к БД
+        const dbStatus = await testConnection();
+        
+        if (!dbStatus.connected) {
+            console.error('❌ Не удалось подключиться к PostgreSQL:', dbStatus.error);
+            process.exit(1);
+        }
+        
+        console.log('🐘 PostgreSQL подключен успешно');
+        console.log(`   Время БД: ${dbStatus.time}`);
+        
+        // Запускаем сервер
+        app.listen(PORT, () => {
+            console.log('\n╔════════════════════════════════════════════════╗');
+            console.log('║     🚀 СЕРВЕР АТЕЛЬЕ "БРИГАДА" ЗАПУЩЕН         ║');
+            console.log('╠════════════════════════════════════════════════╣');
+            console.log(`║  Порт: ${PORT.toString().padEnd(40)} ║`);
+            console.log(`║  Режим: ${NODE_ENV.padEnd(39)} ║`);
+            console.log(`║  API: http://localhost:${PORT}/api`.padEnd(52) + ' ║');
+            console.log('╚════════════════════════════════════════════════╝\n');
+        });
+        
+    } catch (error) {
+        console.error('❌ Ошибка запуска:', error.message);
+        process.exit(1);
+    }
+};
+
+startServer();
