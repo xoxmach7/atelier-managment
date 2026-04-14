@@ -13,9 +13,13 @@ const { Pool } = pg;
 const getPoolConfig = () => {
     // Если есть DATABASE_URL (Railway, Render, Heroku) - используем его
     if (process.env.DATABASE_URL) {
+        // Railway использует внутреннюю сеть - SSL не нужен
+        // Но для внешних подключений (Render, Heroku) SSL может быть нужен
+        const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_SERVICE_NAME;
+        
         return {
             connectionString: process.env.DATABASE_URL,
-            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+            ssl: isRailway ? false : (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false),
             max: 20,
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 2000,
