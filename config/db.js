@@ -8,18 +8,35 @@ dotenv.config();
 
 const { Pool } = pg;
 
+// Конфигурация подключения
+// Railway предоставляет DATABASE_URL, локально - отдельные переменные
+const getPoolConfig = () => {
+    // Если есть DATABASE_URL (Railway, Render, Heroku) - используем его
+    if (process.env.DATABASE_URL) {
+        return {
+            connectionString: process.env.DATABASE_URL,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+            max: 20,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 2000,
+        };
+    }
+    
+    // Локальная разработка - отдельные параметры
+    return {
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        password: process.env.DB_PASSWORD,
+        port: process.env.DB_PORT || 5432,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+    };
+};
+
 // Создаём пул соединений
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT || 5432,
-    // Опции для производительности
-    max: 20,                    // Максимум соединений
-    idleTimeoutMillis: 30000,   // Закрыть неактивное через 30 сек
-    connectionTimeoutMillis: 2000, // Таймаут подключения 2 сек
-});
+const pool = new Pool(getPoolConfig());
 
 // Логирование событий пула
 pool.on('connect', () => {
