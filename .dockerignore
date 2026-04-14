@@ -1,0 +1,52 @@
+# ============================================
+# DOCKERIGNORE
+# ============================================
+
+# Dependencies
+node_modules/
+frontend-react/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+coverage/
+.nyc_output/
+*.test.js
+*.spec.js
+
+# Logs
+*.log
+logs/
+
+# Build (frontend собирается отдельно)
+frontend-react/dist/
+frontend-react/build/
+
+# Documentation (не нужно в контейнере)
+*.md
+!README.md
+
+# Docker files (не нужны внутри)
+Dockerfile*
+docker-compose*.yml
+.dockerignore

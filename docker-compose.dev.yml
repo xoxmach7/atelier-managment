@@ -1,0 +1,71 @@
+# ============================================
+# DOCKER COMPOSE - DEVELOPMENT MODE
+# Hot reload для бэкенда и фронтенда
+# ============================================
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: atelier-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: atelier_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - atelier-dev-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: atelier-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 5001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: atelier_dev
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: dev-secret-key-change-in-production
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "5001:5001"
+    command: npm run dev  # Если есть nodemon
+    # Или: command: node --watch server.js (Node.js 20+)
+    depends_on:
+      - postgres
+    networks:
+      - atelier-dev-network
+
+  frontend:
+    image: node:20-alpine
+    container_name: atelier-frontend-dev
+    working_dir: /app
+    volumes:
+      - ./frontend-react:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install && npm run dev"
+    environment:
+      - VITE_API_URL=http://localhost:5001/api
+    depends_on:
+      - backend
+    networks:
+      - atelier-dev-network
+
+volumes:
+  postgres_dev_data:
+
+networks:
+  atelier-dev-network:
