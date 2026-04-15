@@ -130,6 +130,86 @@ const migrations = [
             CREATE INDEX IF NOT EXISTS idx_kaspi_payments_transaction ON kaspi_payments(transaction_id);
             CREATE INDEX IF NOT EXISTS idx_kaspi_payments_status ON kaspi_payments(status);
         `
+    },
+    {
+        name: 'create_onec_integrations',
+        sql: `
+            CREATE TABLE IF NOT EXISTS onec_integrations (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                integration_type VARCHAR(50) NOT NULL DEFAULT 'UNF',
+                base_url VARCHAR(500) NOT NULL,
+                username VARCHAR(255) NOT NULL,
+                password TEXT NOT NULL,
+                database_name VARCHAR(255),
+                enabled BOOLEAN DEFAULT FALSE,
+                sync_settings JSONB DEFAULT '{}',
+                last_sync TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(company_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_onec_integrations_company ON onec_integrations(company_id);
+            CREATE INDEX IF NOT EXISTS idx_onec_integrations_enabled ON onec_integrations(enabled);
+        `
+    },
+    {
+        name: 'create_onec_nomenclature',
+        sql: `
+            CREATE TABLE IF NOT EXISTS onec_nomenclature (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                onec_id VARCHAR(255) NOT NULL,
+                name VARCHAR(500) NOT NULL,
+                article VARCHAR(255),
+                type VARCHAR(100) DEFAULT 'product',
+                unit VARCHAR(50) DEFAULT 'шт',
+                price DECIMAL(12, 2) DEFAULT 0,
+                onec_data JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(company_id, onec_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_onec_nomenclature_company ON onec_nomenclature(company_id);
+            CREATE INDEX IF NOT EXISTS idx_onec_nomenclature_onec_id ON onec_nomenclature(onec_id);
+            CREATE INDEX IF NOT EXISTS idx_onec_nomenclature_type ON onec_nomenclature(type);
+        `
+    },
+    {
+        name: 'create_onec_sync_logs',
+        sql: `
+            CREATE TABLE IF NOT EXISTS onec_sync_logs (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                entity_type VARCHAR(100) NOT NULL,
+                synced_count INTEGER DEFAULT 0,
+                status VARCHAR(50) NOT NULL,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_onec_sync_logs_company ON onec_sync_logs(company_id);
+            CREATE INDEX IF NOT EXISTS idx_onec_sync_logs_created ON onec_sync_logs(created_at);
+        `
+    },
+    {
+        name: 'add_onec_fields_to_orders',
+        sql: `
+            ALTER TABLE orders 
+            ADD COLUMN IF NOT EXISTS onec_id VARCHAR(255),
+            ADD COLUMN IF NOT EXISTS onec_synced_at TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS onec_error TEXT;
+            
+            CREATE INDEX IF NOT EXISTS idx_orders_onec_id ON orders(onec_id);
+        `
+    },
+    {
+        name: 'add_company_id_to_customers',
+        sql: `
+            ALTER TABLE customers 
+            ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES users(id);
+            
+            CREATE INDEX IF NOT EXISTS idx_customers_company ON customers(company_id);
+        `
     }
 ];
 

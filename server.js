@@ -29,6 +29,7 @@ import productionRoutes from './routes/productionRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import legalRoutes from './routes/legalRoutes.js';
+import onecRoutes from './routes/onecRoutes.js';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -99,6 +100,7 @@ app.use('/api/production', productionRoutes);   // Производство
 app.use('/api/payments', paymentRoutes);        // Предоплаты и выплаты
 app.use('/api/dashboard', dashboardRoutes);     // Аналитика (только admin)
 app.use('/api/legal', legalRoutes);             // Terms, Privacy, Cookies
+app.use('/api/onec', onecRoutes);               // 1С интеграция
 
 // ============================================
 // БАЗОВЫЕ ЭНДПОИНТЫ
