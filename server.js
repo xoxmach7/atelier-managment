@@ -6,6 +6,9 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import morgan from 'morgan';
 
+// Sentry (должен быть первым!)
+import { initSentry, sentryRequestHandler, sentryErrorHandler } from './config/sentry.js';
+
 // Конфигурация
 import { testConnection } from './config/db.js';
 
@@ -24,6 +27,8 @@ import reservationRoutes from './routes/reservationRoutes.js';
 import quoteRoutes from './routes/quoteRoutes.js';
 import productionRoutes from './routes/productionRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
+import legalRoutes from './routes/legalRoutes.js';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -68,6 +73,10 @@ app.use(cors({
 // Парсинг JSON
 app.use(express.json());
 
+// Sentry request handler (должен быть первым middleware)
+initSentry();
+app.use(sentryRequestHandler);
+
 // Логирование запросов
 app.use(morgan(NODE_ENV === 'development' ? 'dev' : 'combined'));
 
@@ -88,6 +97,8 @@ app.use('/api/reservations', reservationRoutes); // Бронирование т�
 app.use('/api/quotes', quoteRoutes);            // Сметы и КП
 app.use('/api/production', productionRoutes);   // Производство
 app.use('/api/payments', paymentRoutes);        // Предоплаты и выплаты
+app.use('/api/dashboard', dashboardRoutes);     // Аналитика (только admin)
+app.use('/api/legal', legalRoutes);             // Terms, Privacy, Cookies
 
 // ============================================
 // БАЗОВЫЕ ЭНДПОИНТЫ
@@ -134,10 +145,11 @@ app.get('/health/detailed', async (req, res) => {
 // ============================================
 // ОБРАБОТКА ОШИБОК
 // ============================================
-// 404 - не найдено
-app.use(notFoundHandler);
+// Sentry error handler (перед основным error handler)
+app.use(sentryErrorHandler);
 
-// Глобальный обработчик ошибок
+// Обработка ошибок (всегда последние)
+app.use(notFoundHandler);
 app.use(errorHandler);
 
 // ============================================
