@@ -96,7 +96,7 @@ export const getDashboardStats = async (req, res) => {
 // ============================================
 // ГРАФИК: Заказы по дням
 // ============================================
-export const getOrdersChart = async (req, req, res) => {
+export const getOrdersChart = async (req, res) => {
     const { days = 30 } = req.query;
     
     const result = await pool.query(`

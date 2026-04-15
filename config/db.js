@@ -95,4 +95,6 @@ export const testConnection = async () => {
     }
 };
 
+// Named exports для совместимости
+export { pool };
 export default pool;

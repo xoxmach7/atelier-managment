@@ -4,6 +4,7 @@
 // ============================================
 import pool, { withTransaction } from '../config/db.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { createPayment, handleCallback, checkPaymentStatus, getOrderPayments } from '../services/kaspiPayService.js';
 
 // Добавить предоплату (меняет статус заказа на "В закупе")
 export const addPrepayment = async (req, res) => {
@@ -193,8 +194,6 @@ export const getSeamstressBalance = async (req, res) => {
 // ============================================
 // KASPI PAY КОНТРОЛЛЕРЫ
 // ============================================
-import { createPayment, handleCallback, checkPaymentStatus, getOrderPayments } from '../services/kaspiPayService.js';
-
 // Создать Kaspi Pay платёж
 export const createKaspiPayment = async (req, res) => {
     const { order_id, amount, description } = req.body;
