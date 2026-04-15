@@ -143,6 +143,8 @@ app.use(errorHandler);
 // ============================================
 // ЗАПУСК СЕРВЕРА
 // ============================================
+import { runMigrations, cleanupExpiredTokens } from './db/migrations.js';
+
 const startServer = async () => {
     try {
         // Проверяем подключение к БД
@@ -156,14 +158,20 @@ const startServer = async () => {
         console.log('🐘 PostgreSQL подключен успешно');
         console.log(`   Время БД: ${dbStatus.time}`);
         
-        // Запускаем сервер
-        app.listen(PORT, () => {
+        // Авто-миграции базы данных
+        await runMigrations();
+        
+        // Очистка истёкших токенов
+        await cleanupExpiredTokens();
+        
+        // Запускаем сервер (0.0.0.0 для Railway/Docker)
+        app.listen(PORT, '0.0.0.0', () => {
             console.log('\n╔════════════════════════════════════════════════╗');
             console.log('║     🚀 СЕРВЕР АТЕЛЬЕ "БРИГАДА" ЗАПУЩЕН         ║');
             console.log('╠════════════════════════════════════════════════╣');
             console.log(`║  Порт: ${PORT.toString().padEnd(40)} ║`);
             console.log(`║  Режим: ${NODE_ENV.padEnd(39)} ║`);
-            console.log(`║  API: http://localhost:${PORT}/api`.padEnd(52) + ' ║');
+            console.log(`║  API: http://0.0.0.0:${PORT}/api`.padEnd(52) + ' ║');
             console.log('╚════════════════════════════════════════════════╝\n');
         });
         

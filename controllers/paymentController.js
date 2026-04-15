@@ -189,3 +189,94 @@ export const getSeamstressBalance = async (req, res) => {
         }
     });
 };
+
+// ============================================
+// KASPI PAY КОНТРОЛЛЕРЫ
+// ============================================
+import { createPayment, handleCallback, checkPaymentStatus, getOrderPayments } from '../services/kaspiPayService.js';
+
+// Создать Kaspi Pay платёж
+export const createKaspiPayment = async (req, res) => {
+    const { order_id, amount, description } = req.body;
+    
+    // Получаем данные заказа и клиента
+    const orderResult = await pool.query(
+        `SELECT o.*, c.email, c.phone, c.full_name
+         FROM orders o
+         JOIN customers c ON o.customer_id = c.id
+         WHERE o.id = $1`,
+        [order_id]
+    );
+    
+    if (orderResult.rows.length === 0) {
+        throw new ApiError(404, 'Заказ не найден');
+    }
+    
+    const order = orderResult.rows[0];
+    
+    const result = await createPayment(
+        order_id,
+        amount,
+        description || `Оплата заказа ${order.order_number}`,
+        {
+            email: order.email,
+            phone: order.phone,
+            name: order.full_name
+        }
+    );
+    
+    if (!result.success) {
+        throw new ApiError(500, result.error || 'Ошибка создания платежа');
+    }
+    
+    res.json({
+        success: true,
+        data: result,
+        message: 'Платёж создан. Отсканируйте QR-код или перейдите по ссылке.'
+    });
+};
+
+// Callback от Kaspi Pay
+export const kaspiCallback = async (req, res) => {
+    console.log('📱 Kaspi callback received:', req.body);
+    
+    const result = await handleCallback(req.body);
+    
+    if (result.success) {
+        res.json({ success: true });
+    } else {
+        res.status(400).json({ success: false, error: result.error });
+    }
+};
+
+// Проверить статус платежа
+export const checkPayment = async (req, res) => {
+    const { transactionId } = req.params;
+    
+    const result = await checkPaymentStatus(transactionId);
+    
+    if (!result.success) {
+        throw new ApiError(404, result.error);
+    }
+    
+    res.json({
+        success: true,
+        data: result.data
+    });
+};
+
+// Получить все платежи по заказу
+export const getOrderKaspiPayments = async (req, res) => {
+    const { order_id } = req.params;
+    
+    const result = await getOrderPayments(order_id);
+    
+    if (!result.success) {
+        throw new ApiError(500, result.error);
+    }
+    
+    res.json({
+        success: true,
+        data: result.data
+    });
+};

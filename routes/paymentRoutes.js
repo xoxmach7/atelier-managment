@@ -4,13 +4,20 @@ import {
     getSeamstressPayments,
     createSeamstressPayment,
     paySeamstress,
-    getSeamstressBalance
+    getSeamstressBalance,
+    createKaspiPayment,
+    kaspiCallback,
+    checkPayment,
+    getOrderKaspiPayments
 } from '../controllers/paymentController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { authenticate, authorize, ROLES } from '../middleware/auth.js';
 import { validatePrepayment, validateId } from '../middleware/validation.js';
 
 const router = express.Router();
+
+// Публичный callback от Kaspi Pay (без авторизации!)
+router.post('/kaspi/callback', asyncHandler(kaspiCallback));
 
 router.use(authenticate);
 
@@ -22,5 +29,10 @@ router.get('/seamstress', authorize(ROLES.MANAGER, ROLES.ADMIN, ROLES.SEAMSTRESS
 router.get('/seamstress/:seamstress_id/balance', authorize(ROLES.MANAGER, ROLES.ADMIN, ROLES.SEAMSTRESS), validateId, asyncHandler(getSeamstressBalance));
 router.post('/seamstress', authorize(ROLES.MANAGER, ROLES.ADMIN), asyncHandler(createSeamstressPayment));
 router.patch('/seamstress/:id/pay', authorize(ROLES.MANAGER, ROLES.ADMIN), validateId, asyncHandler(paySeamstress));
+
+// Kaspi Pay (менеджер/админ)
+router.post('/kaspi/create', authorize(ROLES.MANAGER, ROLES.ADMIN), asyncHandler(createKaspiPayment));
+router.get('/kaspi/status/:transactionId', authorize(ROLES.MANAGER, ROLES.ADMIN), asyncHandler(checkPayment));
+router.get('/kaspi/order/:order_id', authorize(ROLES.MANAGER, ROLES.ADMIN), validateId, asyncHandler(getOrderKaspiPayments));
 
 export default router;

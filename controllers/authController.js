@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import pool from '../config/db.js';
 import { generateToken } from '../middleware/auth.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { handleFailedLogin, handleSuccessfulLogin } from '../middleware/accountLockout.js';
 
 // Регистрация (только admin может создавать пользователей)
 export const register = async (req, res) => {
@@ -62,10 +63,21 @@ export const login = async (req, res) => {
     
     // Проверяем пароль
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
     
     if (!isValidPassword) {
-        throw new ApiError(401, 'Неверный email или пароль');
+        // Записываем неудачную попытку
+        const lockoutInfo = await handleFailedLogin(email, clientIp);
+        
+        if (lockoutInfo.locked) {
+            throw new ApiError(423, `Аккаунт заблокирован после ${lockoutInfo.attempts} неудачных попыток. Попробуйте через 15 минут.`);
+        }
+        
+        throw new ApiError(401, `Неверный email или пароль. Осталось попыток: ${lockoutInfo.remaining}`);
     }
+    
+    // Успешный вход - сбрасываем попытки
+    await handleSuccessfulLogin(email);
     
     // Обновляем last_login
     await pool.query(
@@ -86,7 +98,10 @@ export const login = async (req, res) => {
                 full_name: user.full_name,
                 role: user.role
             },
-            token
+            token,
+            security: {
+                attemptsRemaining: req.lockoutInfo?.attemptsLeft || 5
+            }
         }
     });
 };

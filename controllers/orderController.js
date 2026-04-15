@@ -3,6 +3,7 @@
 // ============================================
 import pool, { withTransaction } from '../config/db.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { sendNewOrderNotification, sendOrderStatusUpdate } from '../services/emailService.js';
 
 // Генерация номера заказа
 const generateOrderNumber = async (client) => {
@@ -117,14 +118,15 @@ export const createOrder = async (req, res) => {
     // [{ item_type: 'fabric', fabric_id: 1, quantity: 6, ... }]
     
     const result = await withTransaction(async (client) => {
-        // 1. Проверяем клиента
+        // 1. Проверяем клиента и получаем email
         const customerCheck = await client.query(
-            'SELECT id FROM customers WHERE id = $1',
+            'SELECT id, email, full_name, phone FROM customers WHERE id = $1',
             [customer_id]
         );
         if (customerCheck.rows.length === 0) {
             throw new ApiError(404, 'Клиент не найден');
         }
+        const customer = customerCheck.rows[0];
         
         // 2. Генерируем номер заказа
         const orderNumber = await generateOrderNumber(client);
@@ -236,10 +238,26 @@ export const createOrder = async (req, res) => {
             [order.id, JSON.stringify({ total_amount: totalAmount }), 'system']
         );
         
-        return { ...order, total_amount: totalAmount };
+        // 7. Отправляем email уведомление клиенту (async, не блокируем ответ)
+        if (customer.email) {
+            sendNewOrderNotification(customer.email, {
+                orderId: orderNumber,
+                customerName: customer.full_name,
+                amount: totalAmount,
+                status: 'Новый',
+                createdAt: new Date().toLocaleDateString('ru-RU'),
+                phone: customer.phone
+            }).catch(err => console.error('❌ Ошибка отправки email:', err.message));
+        }
+        
+        return { ...order, total_amount: totalAmount, customer_email: customer.email };
     });
     
-    res.status(201).json({ success: true, data: result });
+    res.status(201).json({ 
+        success: true, 
+        data: result,
+        message: result.customer_email ? 'Заказ создан, уведомление отправлено' : 'Заказ создан'
+    });
 };
 
 // Обновить статус заказа
@@ -248,9 +266,13 @@ export const updateOrderStatus = async (req, res) => {
     const { status, notes } = req.body;
     
     const result = await withTransaction(async (client) => {
-        // Получаем текущий статус
+        // Получаем текущий статус и данные заказа с клиентом
         const currentResult = await client.query(
-            'SELECT status, total_amount FROM orders WHERE id = $1',
+            `SELECT o.status, o.total_amount, o.order_number, 
+                    c.email, c.full_name, c.phone
+             FROM orders o
+             JOIN customers c ON o.customer_id = c.id
+             WHERE o.id = $1`,
             [id]
         );
         
@@ -258,7 +280,8 @@ export const updateOrderStatus = async (req, res) => {
             throw new ApiError(404, 'Заказ не найден');
         }
         
-        const oldStatus = currentResult.rows[0].status;
+        const orderData = currentResult.rows[0];
+        const oldStatus = orderData.status;
         
         // Обновляем статус
         const updateResult = await client.query(
@@ -274,10 +297,47 @@ export const updateOrderStatus = async (req, res) => {
             [id, oldStatus, status, notes, req.user?.name || 'system']
         );
         
-        return updateResult.rows[0];
+        return { 
+            order: updateResult.rows[0], 
+            customerEmail: orderData.email,
+            customerName: orderData.full_name,
+            orderNumber: orderData.order_number,
+            oldStatus,
+            newStatus: status
+        };
     });
     
-    res.json({ success: true, data: result });
+    // Отправляем email уведомление (async, не блокируем)
+    if (result.customerEmail && result.oldStatus !== result.newStatus) {
+        const statusMessages = {
+            'measurement': { text: 'Замер назначен', color: '#17a2b8' },
+            'quote': { text: 'Смета готова', color: '#ffc107' },
+            'approved': { text: 'Заказ подтверждён', color: '#28a745' },
+            'production': { text: 'В производстве', color: '#6f42c1' },
+            'ready': { text: 'Готов к установке', color: '#20c997' },
+            'installed': { text: 'Установлено', color: '#28a745' },
+            'completed': { text: 'Завершено', color: '#28a745' },
+            'cancelled': { text: 'Отменено', color: '#dc3545' }
+        };
+        
+        const statusInfo = statusMessages[result.newStatus] || { text: result.newStatus, color: '#6c757d' };
+        
+        sendOrderStatusUpdate(result.customerEmail, {
+            orderId: result.orderNumber,
+            customerName: result.customerName,
+            oldStatus: result.oldStatus,
+            newStatus: statusInfo.text,
+            statusColor: statusInfo.color,
+            statusTextColor: '#fff',
+            message: notes || `Статус вашего заказа изменён на "${statusInfo.text}"`
+        }).catch(err => console.error('❌ Ошибка отправки email:', err.message));
+    }
+    
+    res.json({ 
+        success: true, 
+        data: result.order,
+        message: result.customerEmail ? 'Статус обновлён, уведомление отправлено' : 'Статус обновлён'
+    });
 };
 
 // Добавить замер к заказу

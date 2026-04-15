@@ -11,22 +11,33 @@ const { Pool } = pg;
 // Конфигурация подключения
 // Railway предоставляет DATABASE_URL, локально - отдельные переменные
 const getPoolConfig = () => {
-    // Если есть DATABASE_URL (Railway, Render, Heroku) - используем его
+    // Railway предоставляет DATABASE_URL
     if (process.env.DATABASE_URL) {
-        // Railway использует внутреннюю сеть - SSL не нужен
-        // Но для внешних подключений (Render, Heroku) SSL может быть нужен
-        const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_SERVICE_NAME;
-        
         return {
             connectionString: process.env.DATABASE_URL,
-            ssl: isRailway ? false : (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false),
+            ssl: false,
             max: 20,
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 2000,
         };
     }
     
-    // Локальная разработка - отдельные параметры
+    // Fallback: отдельные переменные (PGHOST, PGUSER и т.д.)
+    if (process.env.PGHOST || process.env.DB_HOST) {
+        return {
+            host: process.env.PGHOST || process.env.DB_HOST,
+            port: process.env.PGPORT || process.env.DB_PORT || 5432,
+            database: process.env.PGDATABASE || process.env.DB_NAME,
+            user: process.env.PGUSER || process.env.DB_USER,
+            password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
+            ssl: false,
+            max: 20,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 2000,
+        };
+    }
+    
+    // Локальная разработка
     return {
         user: process.env.DB_USER,
         host: process.env.DB_HOST,
