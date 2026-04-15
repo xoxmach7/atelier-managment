@@ -18,14 +18,17 @@ export const errorHandler = (err, req, res, next) => {
     let statusCode = err.statusCode || 500;
     let message = err.message || 'Внутренняя ошибка сервера';
     
-    // Логирование
-    console.error('💥 Ошибка:', {
-        path: req.path,
-        method: req.method,
-        status: statusCode,
-        message: message,
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+    // Не логируем 401 и 404 в production (шум)
+    const isClientError = statusCode === 401 || statusCode === 404;
+    if (!isClientError || process.env.NODE_ENV === 'development') {
+        console.error('💥 Ошибка:', {
+            path: req.path,
+            method: req.method,
+            status: statusCode,
+            message: message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        });
+    }
     
     // Формируем ответ
     const response = {
