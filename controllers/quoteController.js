@@ -4,6 +4,7 @@
 // ============================================
 import pool, { withTransaction } from '../config/db.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { generateQuotePDF } from '../services/pdfService.js';
 
 // Генерация номера КП
 const generateQuoteNumber = async (client) => {
@@ -425,6 +426,44 @@ export const approveQuote = async (req, res) => {
         message: 'КП согласовано, готово к созданию заказа',
         data: result 
     });
+};
+
+// Генерация PDF сметы
+export const downloadQuotePDF = async (req, res) => {
+    const { id } = req.params;
+    
+    // Получаем смету
+    const quoteResult = await pool.query(
+        'SELECT * FROM quotes WHERE id = $1',
+        [id]
+    );
+    
+    if (quoteResult.rows.length === 0) {
+        throw new ApiError(404, 'Смета не найдена');
+    }
+    
+    const quote = quoteResult.rows[0];
+    
+    // Получаем позиции
+    const itemsResult = await pool.query(
+        'SELECT * FROM quote_items WHERE quote_id = $1 ORDER BY sort_order',
+        [id]
+    );
+    
+    // Получаем данные задачи
+    const taskResult = await pool.query(
+        'SELECT * FROM tasks WHERE id = $1',
+        [quote.task_id]
+    );
+    const task = taskResult.rows[0];
+    
+    // Генерируем PDF
+    const pdfBuffer = await generateQuotePDF(quote, itemsResult.rows, task);
+    
+    // Отправляем PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${quote.quote_number}.pdf"`);
+    res.send(pdfBuffer);
 };
 
 // Хелпер для получения описания позиции

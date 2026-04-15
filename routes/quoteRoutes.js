@@ -5,7 +5,8 @@ import {
     getQuoteById,
     createQuote,
     sendQuote,
-    approveQuote
+    approveQuote,
+    downloadQuotePDF
 } from '../controllers/quoteController.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { authenticate, authorize, ROLES } from '../middleware/auth.js';
@@ -25,6 +26,7 @@ router.post('/calculate',
 // Сметы
 router.get('/', validatePagination, asyncHandler(getQuotes));
 router.get('/:id', validateId, asyncHandler(getQuoteById));
+router.get('/:id/pdf', authorize(ROLES.DESIGNER, ROLES.MANAGER, ROLES.ADMIN), validateId, asyncHandler(downloadQuotePDF));
 router.post('/', authorize(ROLES.DESIGNER, ROLES.MANAGER, ROLES.ADMIN), asyncHandler(createQuote));
 
 // Отправка КП
