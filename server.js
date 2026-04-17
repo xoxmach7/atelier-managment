@@ -42,16 +42,40 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // ============================================
 // MIDDLEWARE
 // ============================================
-// CORS - разрешаем запросы с фронтенда
-const allowedOrigins = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    process.env.CLIENT_URL
-].filter(Boolean);
+// ============================================
+// CORS - поддержка нескольких фронтендов
+// ============================================
+// Парсим CLIENT_URLS (через запятую) или используем CLIENT_URL
+const parseAllowedOrigins = () => {
+    const origins = new Set([
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:8081',
+        'https://mobile-dzz0qk5ld-madiabulkanovs-projects.vercel.app',
+    ]);
+    
+    // Основной клиент
+    if (process.env.CLIENT_URL) {
+        origins.add(process.env.CLIENT_URL);
+    }
+    
+    // Дополнительные клиенты (через запятую)
+    if (process.env.CLIENT_URLS) {
+        process.env.CLIENT_URLS.split(',').forEach(url => {
+            origins.add(url.trim());
+        });
+    }
+    
+    return Array.from(origins).filter(Boolean);
+};
+
+const allowedOrigins = parseAllowedOrigins();
+
+console.log('🌐 Разрешённые CORS origins:', allowedOrigins);
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Разрешаем запросы без origin (например, curl, Postman)
+        // Разрешаем запросы без origin (curl, Postman, мобильные)
         if (!origin) return callback(null, true);
         
         // В development разрешаем localhost
@@ -64,6 +88,8 @@ app.use(cors({
             return callback(null, true);
         }
         
+        // Логируем отклонённые запросы для отладки
+        console.warn(`⚠️ CORS отклонён для origin: ${origin}`);
         callback(new Error(`CORS запрещён для origin: ${origin}`));
     },
     credentials: true,

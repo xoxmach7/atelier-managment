@@ -1,0 +1,101 @@
+# ============================================
+# API-ONLY MODE - Только бэкенд без фронтенда
+# Для подключения внешнего фронтенда друга
+# ============================================
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: brigada-api
+    ports:
+      - "5001:5001"
+    environment:
+      # Database (локальная для разработки)
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: atelier
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      JWT_EXPIRES_IN: 7d
+      
+      # Server
+      PORT: 5001
+      NODE_ENV: production
+      
+      # CORS - здесь добавь URL фронтенда друга
+      CLIENT_URL: ${CLIENT_URL:-}
+      # Можно несколько через запятую:
+      CLIENT_URLS: ${CLIENT_URLS:-http://localhost:3000,http://localhost:5173}
+      
+      # Email (опционально)
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      FROM_EMAIL: ${FROM_EMAIL:-}
+      
+      # Kaspi Pay (опционально)
+      KASPI_MERCHANT_ID: ${KASPI_MERCHANT_ID:-}
+      KASPI_API_KEY: ${KASPI_API_KEY:-}
+      KASPI_SECRET_KEY: ${KASPI_SECRET_KEY:-}
+      KASPI_ENV: ${KASPI_ENV:-sandbox}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:5001}
+      
+      # Sentry (опционально)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    
+    depends_on:
+      db:
+        condition: service_healthy
+    
+    networks:
+      - brigada-network
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL для разработки
+  db:
+    image: postgres:15-alpine
+    container_name: brigada-db
+    environment:
+      POSTGRES_DB: atelier
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - brigada-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis для кэширования (опционально)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: brigada-redis
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - brigada-network
+
+volumes:
+  postgres_data:
+
+networks:
+  brigada-network:
+    driver: bridge
