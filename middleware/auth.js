@@ -2,6 +2,7 @@
 // JWT АУТЕНТИФИКАЦИЯ И АВТОРИЗАЦИЯ
 // ============================================
 import jwt from 'jsonwebtoken';
+import pool from '../config/db.js';
 import { ApiError } from './errorHandler.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -51,7 +52,6 @@ export const authorize = (...allowedRoles) => {
     return async (req, res, next) => {
         try {
             // Получаем пользователя из БД
-            const pool = (await import('../config/db.js')).default;
             const result = await pool.query(
                 'SELECT id, role, is_active FROM users WHERE id = $1',
                 [req.userId]
