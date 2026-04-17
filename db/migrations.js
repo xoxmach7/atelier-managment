@@ -5,6 +5,193 @@ import pool from '../config/db.js';
 
 const migrations = [
     {
+        name: 'create_base_tables',
+        sql: `
+            -- ============================================
+            -- БАЗОВЫЕ ТАБЛИЦЫ (core schema)
+            -- ============================================
+            
+            -- 1. USERS (сотрудники)
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                full_name VARCHAR(255) NOT NULL,
+                role VARCHAR(50) NOT NULL DEFAULT 'manager',
+                phone VARCHAR(50),
+                is_active BOOLEAN DEFAULT TRUE,
+                last_login TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+            CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+            
+            -- 2. CUSTOMERS (клиенты)
+            CREATE TABLE IF NOT EXISTS customers (
+                id SERIAL PRIMARY KEY,
+                full_name VARCHAR(255) NOT NULL,
+                phone VARCHAR(50) NOT NULL UNIQUE,
+                email VARCHAR(255),
+                address TEXT,
+                notes TEXT,
+                source VARCHAR(50) DEFAULT 'walk_in',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+            
+            -- 3. FABRICS (ткани)
+            CREATE TABLE IF NOT EXISTS fabrics (
+                id SERIAL PRIMARY KEY,
+                hanger_number VARCHAR(50) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                composition VARCHAR(255),
+                width_cm INTEGER,
+                stock_meters DECIMAL(10,2) NOT NULL DEFAULT 0,
+                price_per_meter DECIMAL(10,2) NOT NULL,
+                color VARCHAR(100),
+                pattern VARCHAR(100),
+                supplier VARCHAR(255),
+                location VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- 4. CORNICES (карнизы)
+            CREATE TABLE IF NOT EXISTS cornices (
+                id SERIAL PRIMARY KEY,
+                sku VARCHAR(50) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                type VARCHAR(100) NOT NULL,
+                material VARCHAR(100),
+                color VARCHAR(100),
+                length_cm INTEGER,
+                max_load_kg DECIMAL(5,2),
+                stock_count INTEGER NOT NULL DEFAULT 0,
+                price DECIMAL(10,2) NOT NULL,
+                supplier VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- 5. SERVICES (услуги)
+            CREATE TABLE IF NOT EXISTS services (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                unit VARCHAR(50) NOT NULL,
+                price_per_unit DECIMAL(10,2) NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- 6. ORDERS (заказы)
+            CREATE TABLE IF NOT EXISTS orders (
+                id SERIAL PRIMARY KEY,
+                order_number VARCHAR(50) UNIQUE NOT NULL,
+                customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+                installation_address TEXT,
+                installation_date DATE,
+                status VARCHAR(50) DEFAULT 'new',
+                total_amount DECIMAL(12,2) DEFAULT 0,
+                prepaid_amount DECIMAL(12,2) DEFAULT 0,
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+            CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+            CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number);
+            
+            -- 7. ORDER_ITEMS (позиции заказа)
+            CREATE TABLE IF NOT EXISTS order_items (
+                id SERIAL PRIMARY KEY,
+                order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                fabric_id INTEGER REFERENCES fabrics(id),
+                cornice_id INTEGER REFERENCES cornices(id),
+                service_id INTEGER REFERENCES services(id),
+                description TEXT,
+                quantity DECIMAL(10,2) NOT NULL DEFAULT 1,
+                unit_price DECIMAL(10,2) NOT NULL,
+                total_price DECIMAL(10,2) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- 8. TASKS (задачи/лиды)
+            CREATE TABLE IF NOT EXISTS tasks (
+                id SERIAL PRIMARY KEY,
+                task_number VARCHAR(50) UNIQUE NOT NULL,
+                client_name VARCHAR(255),
+                client_phone VARCHAR(50),
+                client_address TEXT,
+                customer_id INTEGER REFERENCES customers(id),
+                source VARCHAR(50) DEFAULT 'walk_in',
+                description TEXT,
+                status VARCHAR(50) DEFAULT 'lead',
+                priority VARCHAR(20) DEFAULT 'normal',
+                assigned_designer_id INTEGER REFERENCES users(id),
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- 9. MEASUREMENTS (замеры)
+            CREATE TABLE IF NOT EXISTS measurements (
+                id SERIAL PRIMARY KEY,
+                task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                room_name VARCHAR(100),
+                window_name VARCHAR(100),
+                width_cm DECIMAL(10,2),
+                height_cm DECIMAL(10,2),
+                notes TEXT,
+                measured_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- 10. QUOTES (сметы)
+            CREATE TABLE IF NOT EXISTS quotes (
+                id SERIAL PRIMARY KEY,
+                quote_number VARCHAR(50) UNIQUE NOT NULL,
+                task_id INTEGER REFERENCES tasks(id),
+                customer_id INTEGER REFERENCES customers(id),
+                total_amount DECIMAL(12,2) DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'draft',
+                valid_until DATE,
+                notes TEXT,
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- 11. PAYMENTS (платежи)
+            CREATE TABLE IF NOT EXISTS payments (
+                id SERIAL PRIMARY KEY,
+                order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+                amount DECIMAL(12,2) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                method VARCHAR(50) NOT NULL,
+                notes TEXT,
+                received_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- 12. PRODUCTION_QUEUE (очередь производства)
+            CREATE TABLE IF NOT EXISTS production_queue (
+                id SERIAL PRIMARY KEY,
+                order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                order_item_id INTEGER REFERENCES order_items(id),
+                status VARCHAR(50) DEFAULT 'pending',
+                assigned_seamstress_id INTEGER REFERENCES users(id),
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `
+    },
+    {
         name: 'create_password_resets',
         sql: `
             CREATE TABLE IF NOT EXISTS password_resets (

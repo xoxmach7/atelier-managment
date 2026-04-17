@@ -15,10 +15,10 @@ const getPoolConfig = () => {
     if (process.env.DATABASE_URL) {
         return {
             connectionString: process.env.DATABASE_URL,
-            ssl: false,
-            max: 20,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+            max: 10,
             idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 2000,
+            connectionTimeoutMillis: 10000, // Увеличили с 2000 до 10000
         };
     }
     
@@ -31,9 +31,9 @@ const getPoolConfig = () => {
             user: process.env.PGUSER || process.env.DB_USER,
             password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
             ssl: false,
-            max: 20,
+            max: 10,
             idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 2000,
+            connectionTimeoutMillis: 10000,
         };
     }
     
