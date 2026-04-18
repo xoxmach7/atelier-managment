@@ -397,6 +397,60 @@ const migrations = [
             
             CREATE INDEX IF NOT EXISTS idx_customers_company ON customers(company_id);
         `
+    },
+    {
+        name: 'seed_test_admin',
+        sql: `
+            -- ============================================
+            -- ТЕСТОВЫЙ АДМИНИСТРАТОР (авто-создание)
+            -- Пароль: admin123
+            -- ============================================
+            
+            DO $$
+            BEGIN
+                -- Проверяем, есть ли уже пользователи
+                IF NOT EXISTS (SELECT 1 FROM users LIMIT 1) THEN
+                    -- Создаём тестового админа (bcrypt hash для "admin123")
+                    INSERT INTO users (email, password_hash, full_name, role, phone, is_active, created_at)
+                    VALUES (
+                        'admin@test.com',
+                        '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+                        'Администратор Тестовый',
+                        'admin',
+                        '+77001111111',
+                        true,
+                        CURRENT_TIMESTAMP
+                    );
+                    
+                    RAISE NOTICE '✅ Тестовый администратор создан: admin@test.com / admin123';
+                ELSE
+                    RAISE NOTICE 'ℹ️ Пользователи уже существуют, пропускаем seed';
+                END IF;
+            END $$;
+        `
+    },
+    {
+        name: 'seed_test_customers',
+        sql: `
+            -- ============================================
+            -- ТЕСТОВЫЕ КЛИЕНТЫ (авто-создание)
+            -- ============================================
+            
+            DO $$
+            BEGIN
+                -- Проверяем, есть ли уже клиенты
+                IF NOT EXISTS (SELECT 1 FROM customers LIMIT 1) THEN
+                    INSERT INTO customers (full_name, phone, email, address, source, created_at) VALUES
+                    ('Иванов Иван Иванович', '+77011234567', 'ivan@example.com', 'ул. Ленина, 1', 'website', CURRENT_TIMESTAMP),
+                    ('Петрова Мария Сергеевна', '+77022345678', 'maria@example.com', 'ул. Абая, 15', 'instagram', CURRENT_TIMESTAMP),
+                    ('Сидоров Алексей Петрович', '+77033456789', 'alex@example.com', 'пр. Назарбаева, 45', 'walk_in', CURRENT_TIMESTAMP);
+                    
+                    RAISE NOTICE '✅ Тестовые клиенты созданы (3 шт.)';
+                ELSE
+                    RAISE NOTICE 'ℹ️ Клиенты уже существуют, пропускаем seed';
+                END IF;
+            END $$;
+        `
     }
 ];
 
